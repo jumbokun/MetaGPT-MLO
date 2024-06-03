@@ -648,6 +648,23 @@ class RunCodeResult(BaseContext):
     stdout: str
     stderr: str
 
+class SaveModelContext(BaseContext):
+    mode: str = "script"
+    code: Optional[str] = None
+    code_filename: str = ""
+    test_code: Optional[str] = None
+    test_filename: str = ""
+    command: List[str] = Field(default_factory=list)
+    working_directory: str = ""
+    additional_python_paths: List[str] = Field(default_factory=list)
+    output_filename: Optional[str] = None
+    output: Optional[str] = None
+
+
+class SaveModelResult(BaseContext):
+    summary: str
+    stdout: str
+    stderr: str
 
 class CodeSummarizeContext(BaseModel):
     design_filename: str = ""
