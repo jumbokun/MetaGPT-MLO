@@ -9,19 +9,15 @@ from metagpt.logs import logger
 from metagpt.schema import SaveModelContext, SaveModelResult
 from metagpt.utils.exceptions import handle_exception
 
-PROMPT_TEMPLATE = """
+SAVE_MODEL_PROMPT = """
 Role: You are a senior machine learning engineer, your role is to run the existing code, save the final model as a checkpoint file so that others can directly import it.
-If the running result does not include an error, you should explicitly approve the result.
-On the other hand, if the running result indicates some error, you should point out which part, the development code or the test code, produces the error,
-and give specific instructions on fixing the errors. Here is the code info:
-{context}, and the command to execute the training process {command}.
-Now you should begin your analysis
+Please rewrite the code anyway such that it will save the final result as a checkpoint file.
+Here is the code info:
+{context}.
+Now you should begin your development.
 ---
-## instruction:
-Please check the code and extend it so that it can save the final training result to a checkpoint file.
-If the extended code has bug, summarize the cause of the errors and give correction instruction
-## File To Rewrite:
-Determine the ONE file to rewrite in order to fix the error, for example, xyz.py, or test_xyz.py. If you can indicate exactly which lines are causing the error, please also provide it explicitly.
+## Rewrited code:
+Please check the code and rewrite or extend it so that it can save the final training result to a checkpoint file.
 ## Status:
 Determine if all of the code works fine, if so write PASS, else FAIL.
 WRITE ONLY ONE WORD, PASS OR FAIL, IN THIS SECTION
@@ -34,46 +30,11 @@ WRITE ONLY ONE WORD, NoOne OR Engineer OR SoftwareEngineer, IN THIS SECTION.
 You should fill in necessary instruction, status, model file name and send to, and finally return all content between the --- segment line.
 """
 
-TEMPLATE_CONTEXT = """
-## Development Code File Name
-{code_file_name}
-## Development Code
-```python
-{code}
-```
-## Test File Name
-{test_file_name}
-## Test Code
-```python
-{test_code}
-```
-## Running Command
-{command}
-## Running Output
-standard output: 
-```text
-{outs}
-```
-standard errors: 
-```text
-{errs}
-```
-"""
-
 
 class SaveModel(Action):
     name: str = "SaveModel"
     i_context: SaveModelContext = Field(default_factory=SaveModelContext)
 
-    @classmethod
-    async def run_text(cls, code) -> Tuple[str, str]:
-        try:
-            # We will document_store the result in this dictionary
-            namespace = {}
-            exec(code, namespace)
-        except Exception as e:
-            return "", str(e)
-        return namespace.get("result", ""), ""
 
     async def run_script(self, working_directory, additional_python_paths=[], command=[]) -> Tuple[str, str]:
         working_directory = str(working_directory)
