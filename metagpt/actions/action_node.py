@@ -234,7 +234,7 @@ class ActionNode:
     @classmethod
     @register_action_outcls
     def create_model_class(cls, class_name: str, mapping: Dict[str, Tuple[Type, Any]]):
-        """基于pydantic v2的模型动态生成，用来检验结果类型正确性"""
+        """基于pydantic v2的模型动态生成 用来检验结果类型正确性"""
 
         def check_fields(cls, values):
             required_fields = set(mapping.keys())

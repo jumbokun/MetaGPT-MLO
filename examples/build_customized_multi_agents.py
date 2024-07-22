@@ -85,6 +85,8 @@ class SimpleTester(Role):
 
         # context = self.get_memories(k=1)[0].content # use the most recent memory as context
         context = self.get_memories()  # use all memories as context
+        logger.info(f"memories: {self.get_memories()}")
+        logger.info(f"recent memories: {self.get_memories(k=1)[0].content}")
 
         code_text = await todo.run(context, k=5)  # specify arguments
         msg = Message(content=code_text, role=self.profile, cause_by=type(todo))
@@ -120,7 +122,7 @@ class SimpleReviewer(Role):
 
 async def main(
     idea: str = "write a function that calculates the product of a list",
-    investment: float = 3.0,
+    # investment: float = 3.0,
     n_round: int = 5,
     add_human: bool = False,
 ):
@@ -135,7 +137,7 @@ async def main(
         ]
     )
 
-    team.invest(investment=investment)
+    # team.invest(investment=investment)
     team.run_project(idea)
     await team.run(n_round=n_round)
 

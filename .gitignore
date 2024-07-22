@@ -188,3 +188,9 @@ cov.xml
 *-structure.json
 *.dot
 .python-version
+
+# project data
+/project/
+project/
+/project
+./project
