@@ -1,3 +1,17 @@
-from metagpt.software_company import generate_repo, ProjectRepo
-repo: ProjectRepo = generate_repo("Create a 2048 game")  # or ProjectRepo("<path>")
-print(repo)  # it will print the repo structure with files
+import asyncio
+from metagpt.logs import logger
+from metagpt.roles.di.data_interpreter import DataInterpreter
+from metagpt.utils.recovery_util import save_history
+
+async def main(requirement: str = ""):
+
+    di = DataInterpreter()
+    rsp = await di.run(requirement)
+    logger.info(rsp)
+    save_history(role=di)
+
+
+if __name__ == "__main__":
+
+    requirement = "Run data analysis on sklearn Iris dataset, include a plot"
+    asyncio.run(main(requirement))

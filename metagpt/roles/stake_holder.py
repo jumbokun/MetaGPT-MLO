@@ -31,10 +31,24 @@ Output a json following the format:
 ```
 """
 
+REVIEW_THINK_PROMPT = """
+# Report
+{Report}
+# Context
+{context}
 
-class DataInterpreter(Role):
+Output a json following the format:
+```json
+{{
+    "thoughts": str = "Thoughts on current situation, reflect on how you should proceed to fulfill the user requirement",
+    "state": bool = "Decide whether you need to take more actions to complete the user requirement. Return true if you think so. Return false if you think the requirement has been completely fulfilled."
+}}
+```
+"""
+
+class StakeHolder(Role):
     name: str = "David"
-    profile: str = "DataInterpreter"
+    profile: str = "StakeHolder"
     auto_run: bool = True
     use_plan: bool = True
     use_reflection: bool = False
@@ -43,6 +57,7 @@ class DataInterpreter(Role):
     tool_recommender: ToolRecommender = None
     react_mode: Literal["plan_and_act", "react"] = "plan_and_act"
     max_react_loop: int = 10  # used for react mode
+    stage = 'init'
 
     @model_validator(mode="after")
     def set_plan_and_tool(self) -> "Interpreter":
@@ -62,6 +77,8 @@ class DataInterpreter(Role):
 
     async def _think(self) -> bool:
         """Useful in 'react' mode. Use LLM to decide whether and what to do next."""
+        if self.stage == 'init':
+            
         user_requirement = self.get_memories()[0].content
         print(self.get_memories())
         context = self.working_memory.get()
@@ -85,8 +102,7 @@ class DataInterpreter(Role):
         """Useful in 'react' mode. Return a Message conforming to Role._act interface."""
         code, _, _ = await self._write_and_exec_code()
         return Message(content=code, role="assistant", cause_by=WriteAnalysisCode)
-    
-    # Override
+
     async def _plan_and_act(self) -> Message:
         try:
             rsp = await super()._plan_and_act()
@@ -95,96 +111,9 @@ class DataInterpreter(Role):
         except Exception as e:
             await self.execute_code.terminate()
             raise e
-    # invoked by plan and act
+
     async def _act_on_task(self, current_task: Task) -> TaskResult:
         """Useful in 'plan_and_act' mode. Wrap the output in a TaskResult for review and confirmation."""
         code, result, is_success = await self._write_and_exec_code()
         task_result = TaskResult(code=code, result=result, is_success=is_success)
         return task_result
-
-    async def _write_and_exec_code(self, max_retry: int = 3):
-        counter = 0
-        success = False
-
-        # plan info
-        plan_status = self.planner.get_plan_status() if self.use_plan else ""
-
-        # tool info
-        if self.tool_recommender:
-            context = (
-                self.working_memory.get()[-1].content if self.working_memory.get() else ""
-            )  # thoughts from _think stage in 'react' mode
-            plan = self.planner.plan if self.use_plan else None
-            tool_info = await self.tool_recommender.get_recommended_tool_info(context=context, plan=plan)
-        else:
-            tool_info = ""
-
-        # data info
-        await self._check_data()
-
-        while not success and counter < max_retry:
-            ### write code ###
-            code, cause_by = await self._write_code(counter, plan_status, tool_info)
-
-            self.working_memory.add(Message(content=code, role="assistant", cause_by=cause_by))
-
-            ### execute code ###
-            result, success = await self.execute_code.run(code)
-            print(result)
-
-            self.working_memory.add(Message(content=result, role="user", cause_by=ExecuteNbCode))
-
-            ### process execution result ###
-            counter += 1
-
-            if not success and counter >= max_retry:
-                logger.info("coding failed!")
-                review, _ = await self.planner.ask_review(auto_run=False, trigger=ReviewConst.CODE_REVIEW_TRIGGER)
-                if ReviewConst.CHANGE_WORDS[0] in review:
-                    counter = 0  # redo the task again with help of human suggestions
-
-        return code, result, success
-
-    async def _write_code(
-        self,
-        counter: int,
-        plan_status: str = "",
-        tool_info: str = "",
-    ):
-        todo = self.rc.todo  # todo is WriteAnalysisCode
-        logger.info(f"ready to {todo.name}")
-        use_reflection = counter > 0 and self.use_reflection  # only use reflection after the first trial
-
-        user_requirement = self.get_memories()[0].content
-
-        code = await todo.run(
-            user_requirement=user_requirement,
-            plan_status=plan_status,
-            tool_info=tool_info,
-            working_memory=self.working_memory.get(),
-            use_reflection=use_reflection,
-        )
-
-        return code, todo
-
-    async def _check_data(self):
-        if (
-            not self.use_plan
-            or not self.planner.plan.get_finished_tasks()
-            or self.planner.plan.current_task.task_type
-            not in [
-                TaskType.DATA_PREPROCESS.type_name,
-                TaskType.FEATURE_ENGINEERING.type_name,
-                TaskType.MODEL_TRAIN.type_name,
-            ]
-        ):
-            return
-        logger.info("Check updated data")
-        code = await CheckData().run(self.planner.plan)
-        if not code.strip():
-            return
-        result, success = await self.execute_code.run(code)
-        if success:
-            print(result)
-            data_info = DATA_INFO.format(info=result)
-            self.working_memory.add(Message(content=data_info, role="user", cause_by=CheckData))

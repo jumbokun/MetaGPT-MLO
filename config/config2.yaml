@@ -9,7 +9,7 @@
 
 llm:
   api_type: "ollama"  # 使用本地的Ollama模型
-  base_url: 'http://127.0.0.1:11434/api'  # Ollama服务的URL
+  base_url: 'http://ollama.corinth.informatik.rwth-aachen.de/api'  # Ollama服务的URL
   # api_key: ""  # 如果不需要API key，可以留空
   model: "falcon:40b"  # 使用的Ollama模型名称
   proxy: ""  # 如果不需要代理，可以留空
