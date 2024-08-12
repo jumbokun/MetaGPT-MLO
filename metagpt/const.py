@@ -126,5 +126,5 @@ COMPOSITION = "Composite"
 AGGREGATION = "Aggregate"
 
 # Timeout
-USE_CONFIG_TIMEOUT = 0  # Using llm.timeout configuration.
-LLM_API_TIMEOUT = 300
+USE_CONFIG_TIMEOUT = 1000  # Using llm.timeout configuration.
+LLM_API_TIMEOUT = 1000

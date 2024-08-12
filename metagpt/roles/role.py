@@ -305,7 +305,8 @@ class Role(SerializationMixin, ContextMixin, BaseModel):
         """Watch Actions of interest. Role will select Messages caused by these Actions from its personal message
         buffer during _observe.
         """
-        self.rc.watch = {any_to_str(t) for t in actions}
+        # self.rc.watch = {any_to_str(t) for t in actions}
+        self.rc.watch = [any_to_str(t) for t in actions]
 
     def is_watch(self, caused_by: str):
         return caused_by in self.rc.watch
@@ -479,8 +480,11 @@ class Role(SerializationMixin, ContextMixin, BaseModel):
         """first plan, then execute an action sequence, i.e. _think (of a plan) -> _act -> _act -> ... Use llm to come up with the plan dynamically."""
 
         # create initial plan and update it until confirmation
+        # testing
         goal = self.rc.memory.get()[-1].content  # retreive latest user requirement
+        print(goal)
         await self.planner.update_plan(goal=goal)
+        print('updated plan')
 
         # take on tasks until all finished
         while self.planner.current_task:

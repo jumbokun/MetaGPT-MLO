@@ -1,11 +1,12 @@
 import asyncio
 from metagpt.logs import logger
 from metagpt.roles.di.data_interpreter import DataInterpreter
+from metagpt.roles.requirement_engineer import RequirementEngineer
 from metagpt.utils.recovery_util import save_history
 
 async def main(requirement: str = ""):
 
-    di = DataInterpreter()
+    di = RequirementEngineer()
     rsp = await di.run(requirement)
     logger.info(rsp)
     save_history(role=di)
