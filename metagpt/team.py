@@ -11,6 +11,7 @@
 import warnings
 from pathlib import Path
 from typing import Any, Optional
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -96,40 +97,75 @@ class Team(BaseModel):
         if self.cost_manager.total_cost >= self.cost_manager.max_budget:
             raise NoMoneyException(self.cost_manager.total_cost, f"Insufficient funds: {self.cost_manager.max_budget}")
 
-    def run_project(self, idea, send_to: str = ""):
-        """Run a project from publishing user requirement."""
+    def run_project(self, idea, resume: bool = False, send_to: str = ""):
+        """Run a project, optionally resuming from the last saved state."""
+        if resume:
+            # 尝试从上次的断点加载状态
+            try:
+                with open("workspace/last_run_path.txt", "r") as f:
+                    last_run_path = f.read().strip()  # 读取 last_run_path.txt 中保存的路径
+                    stg_path = Path(last_run_path)
+                    logger.info(f"Loaded last saved workspace path: {stg_path}")
+            except FileNotFoundError:
+                logger.error("No previous run path found, starting a new project.")
+                self._start_new_project(idea, send_to)
+                return
+
+            # 尝试从上次的断点加载状态
+            if stg_path.exists():
+                logger.info("Resuming from last saved state.")
+                team = Team.deserialize(stg_path=stg_path)
+                self.env = team.env  # 恢复环境
+                self.idea = team.idea
+            else:
+                logger.error(f"Workspace path not found: {stg_path}. Starting a new project.")
+                self._start_new_project(idea, send_to)
+        else:
+            # 创建新的工作区并开始新项目
+            self._start_new_project(idea, send_to)
+
+
+    
+    def _start_new_project(self, idea: str, send_to: str):
+        """Helper method to start a new project."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        workspace_path = Path("workspace") / f"run_{timestamp}"
+        workspace_path.mkdir(parents=True, exist_ok=True)
+
         self.idea = idea
+
+        with open("workspace/last_run_path.txt", "w") as f:
+            f.write(str(workspace_path))
 
         # Human requirement.
         self.env.publish_message(
             Message(role="Human", content=idea, cause_by=UserRequirement, send_to=send_to or MESSAGE_ROUTE_TO_ALL),
-            peekable=False,
         )
-
-    def start_project(self, idea, send_to: str = ""):
-        """
-        Deprecated: This method will be removed in the future.
-        Please use the `run_project` method instead.
-        """
-        warnings.warn(
-            "The 'start_project' method is deprecated and will be removed in the future. "
-            "Please use the 'run_project' method instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.run_project(idea=idea, send_to=send_to)
-
+        
     @serialize_decorator
     async def run(self, n_round=3, idea="", send_to="", auto_archive=True):
         """Run company until target round or no money"""
         if idea:
             self.run_project(idea=idea, send_to=send_to)
 
+        try:
+            with open("workspace/last_run_path.txt", "r") as f:
+                last_run_path = f.read().strip()
+                workspace_path = Path(last_run_path)
+        except FileNotFoundError:
+            logger.error("No workspace path found. Exiting.")
+            return
+
         while n_round > 0:
             n_round -= 1
             self._check_balance()
             await self.env.run()
 
-            logger.debug(f"max {n_round=} left.")
+            logger.info(f"Serializing team state to {workspace_path}")
+            self.serialize(stg_path=workspace_path)
+
+            logger.debug(f"Rounds remaining: {n_round}")
+
+        # 项目结束后，归档项目历史记录
         self.env.archive(auto_archive)
         return self.env.history

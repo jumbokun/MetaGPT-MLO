@@ -1,75 +1,71 @@
-"""
-Filename: MetaGPT/examples/build_customized_multi_agents.py
-Created Date: Wednesday, November 15th 2023, 7:12:39 pm
-Author: garylin2099
-"""
-import re
-
+import asyncio
+import json
+from collections import deque
+from typing import List, Dict
 import fire
-
-from metagpt.actions import Action, UserRequirement
-from metagpt.logs import logger
-from metagpt.roles import Role
-from metagpt.schema import Message
+from pathlib import Path
 from metagpt.team import Team
 from metagpt.roles.stakeholder import Stakeholder
-from metagpt.roles.solution_architect import SolutionArchtect
+from metagpt.roles.solution_architect import SolutionArchitect
 from metagpt.roles.data_engineer import DataEngineer
 from metagpt.roles.data_scientist import DataScientist
 from metagpt.roles.software_engineer import SoftwareEngineer
 from metagpt.roles.ML_engineer import MLEngineer
 from metagpt.roles.DevOps_engineer import DevOpsEngineer
-async def main(
-    idea: str = 
-    """
-# Overall
-We are engaging in a competition named RSNA 2024 Lumbar Spine Degenerative Classification, we are suppose to write some code in notebook and execute it till we have the final result: submission.csv. 
+from metagpt.logs import logger
+from metagpt.utils.recovery_util import save_history
+import sys
 
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+DATA_DESC = """
 # Data
-Dataset Description
-The goal of this competition is to identify medical conditions affecting the lumbar spine in MRI scans.
+The goal of this competition is to identify medical conditions affecting the lumbar spine in MRI scans. The data is stored under RSNA folder.
 
 This competition uses a hidden test. When your submitted notebook is scored, the actual test data (including a full length sample submission) will be made available to your notebook.
+## File Structure
+RSNA/
+    train_images/
+        [study_id]/
+            [series_id]/[instance_number].dcm # MRI scan images for training
+    test_images/
+        [study_id]/
+            [series_id]/[instance_number].dcm # MRI scan images for testing
+    train.csv # Labels for the training set
+    train_label_coordinates.csv # Coordinates of labels on images
+    train_series_descriptions.csv # Descriptions of MRI scan orientations
+    test_series_descriptions.csv # Descriptions of MRI scan orientations for test images
+    sample_submission.csv # Template for submission
 
-Files
-train.csv Labels for the train set.
+## File Descriptions:
 
-study_id - The study ID. Each study may include multiple series of images.
-[condition]_[level] - The target labels, such as spinal_canal_stenosis_l1_l2, with the severity levels of Normal/Mild, Moderate, or Severe. Some entries have incomplete labels.
-train_label_coordinates.csv
+1. **train.csv**: Contains the labels for the training dataset. Each row corresponds to a `study_id` and includes severity scores for five lumbar spine degenerative conditions:
+    - **Conditions**: Left Neural Foraminal Narrowing, Right Neural Foraminal Narrowing, Left Subarticular Stenosis, Right Subarticular Stenosis, and Spinal Canal Stenosis.
+    - **Severity Levels**: Normal/Mild, Moderate, Severe.
 
-study_id
-series_id - The imagery series ID.
-instance_number - The image's order number within the 3D stack.
-condition - There are three core conditions: spinal canal stenosis, neural_foraminal_narrowing, and subarticular_stenosis. The latter two are considered for each side of the spine.
-level - The relevant vertebrae, such as l3_l4
-[x/y] - The x/y coordinates for the center of the area that defined the label.
-sample_submission.csv
+2. **train_label_coordinates.csv**: Provides detailed coordinates for the labels in the training images. This file includes:
+    - **study_id** and **series_id** to identify the MRI scans.
+    - **instance_number**: The image's order number within the 3D stack.
+    - **Coordinates (x/y)**: The center of the area that defines the label for each condition.
+    - **Conditions**: Spinal Canal Stenosis, Neural Foraminal Narrowing (Left/Right), and Subarticular Stenosis (Left/Right).
 
-row_id - A slug of the study ID, condition, and level such as 12345_spinal_canal_stenosis_l3_l4.
-[normal_mild/moderate/severe] - The three prediction columns.
-[train/test]_images/[study_id]/[series_id]/[instance_number].dcm The imagery data.
+3. **train_series_descriptions.csv**: Describes the orientation of the MRI scans (e.g., sagittal, axial) and their corresponding `study_id` and `series_id`.
 
-[train/test]_series_descriptions.csv
+4. **test_images/**: This folder contains the test set MRI images in the same format as the training images. However, the test set does not have associated labels since it is used for evaluation.
 
-study_id
-series_id
-series_description The scan's orientation.
+5. **test_series_descriptions.csv**: Describes the orientation of the test MRI scans, similar to `train_series_descriptions.csv`.
 
-# Description
-Low back pain is the leading cause of disability worldwide, according to the World Health Organization, affecting 619 million people in 2020. Most people experience low back pain at some point in their lives, with the frequency increasing with age. Pain and restricted mobility are often symptoms of spondylosis, a set of degenerative spine conditions including degeneration of intervertebral discs and subsequent narrowing of the spinal canal (spinal stenosis), subarticular recesses, or neural foramen with associated compression or irritations of the nerves in the low back.
+6. **sample_submission.csv**: A template for the expected format of your final submission. Each row should contain:
+    - **row_id**: A slug combining the `study_id`, `condition`, and `level` (e.g., `12345_spinal_canal_stenosis_l3_l4`).
+    - **normal_mild**, **moderate**, **severe**: Three probability columns for the severity levels.
 
-Magnetic resonance imaging (MRI) provides a detailed view of the lumbar spine vertebra, discs and nerves, enabling radiologists to assess the presence and severity of these conditions. Proper diagnosis and grading of these conditions help guide treatment and potential surgery to help alleviate back pain and improve overall health and quality of life for patients.
 
-RSNA has teamed with the American Society of Neuroradiology (ASNR) to conduct this competition exploring whether artificial intelligence can be used to aid in the detection and classification of degenerative spine conditions using lumbar spine MR images.
+## MRI Image Format:
 
-The challenge will focus on the classification of five lumbar spine degenerative conditions: Left Neural Foraminal Narrowing, Right Neural Foraminal Narrowing, Left Subarticular Stenosis, Right Subarticular Stenosis, and Spinal Canal Stenosis. For each imaging study in the dataset, we’ve provided severity scores (Normal/Mild, Moderate, or Severe) for each of the five conditions across the intervertebral disc levels L1/L2, L2/L3, L3/L4, L4/L5, and L5/S1.
-
-To create the ground truth dataset, the RSNA challenge planning task force collected imaging data sourced from eight sites on five continents. This multi-institutional, expertly curated dataset promises to improve standardized classification of degenerative lumbar spine conditions and enable development of tools to automate accurate and rapid disease classification.
-
-Challenge winners will be recognized at an event during the RSNA 2024 annual meeting. For more information on the challenge, contact RSNA Informatics staff at informatics@rsna.org.
-
-# Evaluation
+- **DICOM (.dcm)** format is used for the MRI scans in both `train_images/` and `test_images/` folders. Each DICOM file represents a 2D slice of a 3D MRI scan. A study consists of multiple slices (or images) in sequence.
+  
+## Evaluation
 Submissions are evaluated using the average of sample weighted log losses and an any_severe_spinal prediction generated by the metric. The metric notebook can be found here.
 
 The sample weights are as follows:
@@ -88,32 +84,115 @@ In rare cases the lowest vertebrae aren't visible in the imagery. You still need
 
 For this competition, the any_severe_scalar has been set to 1.0.
 
-# Settings
-The 
+## Additional Notes:
+- The `train.csv` file contains incomplete labels for some entries, so ensure that missing values are handled appropriately.
+- The final result (saved as `submission.csv`) will include predictions for all vertebral levels, including levels where the vertebrae are not visible. In such cases, the predictions will not be scored, but null values should be avoided.
+
+"""
+
+
+# 读取生成的任务列表
+def load_tasks(project_path):
+    with open(Path(project_path) / "generated_tasks.json", 'r') as file:
+        tasks = json.load(file)
+    return tasks
+
+async def run_task(task: dict):
+    """根据任务分配启动相应的 agent 并执行任务"""
+    assigned_agent = task['assigned_agent']
+    requirement = task['details']  
+    task_id = task['task_id']
+    task_description = task['task_description']
+    
+    logger.info(f"Starting task {task_id} with agent {assigned_agent}")
+
+    # 将数据描述附加到任务描述中
+    full_task_details = f"{task_description}\n\n{requirement}\n\n{DATA_DESC}"
+
+    # 根据任务中的 assigned_agent 启动不同的 agent
+    if assigned_agent == "DataEngineer":
+        agent = DataEngineer()
+    elif assigned_agent == "MLEngineer":
+        agent = MLEngineer()
+    elif assigned_agent == "DevOpsEngineer":
+        agent = DevOpsEngineer()
+    elif assigned_agent == "DataScientist":
+        agent = DataScientist()
+    elif assigned_agent == "SoftwareEngineer":
+        agent = SoftwareEngineer()
+    else:
+        logger.warning(f"Agent {assigned_agent} not recognized. Skipping task.")
+        return
+
+    # 执行任务
+    try:
+        rsp = await agent.run(full_task_details)
+        logger.info(f"Task {task_id} completed: {rsp}")
+    except Exception as e:
+        logger.error(f"Failed to complete task {task_id} with error: {str(e)}")
+
+    # 保存执行历史
+    # save_history(role=agent)
+
+async def schedule_tasks(tasks: List[Dict]):
+    """调度并按顺序执行任务，使用队列来管理可执行任务"""
+    completed_tasks = set()
+    task_queue = deque()  # 队列存放可执行的任务
+    task_dependencies = {task['task_id']: task['dependencies'] for task in tasks}
+    task_map = {task['task_id']: task for task in tasks}
+
+    # 初始化队列：将所有没有依赖的任务放入队列
+    for task_id, dependencies in task_dependencies.items():
+        if not dependencies:  # 没有依赖的任务可以立即执行
+            task_queue.append(task_map[task_id])
+
+    # 处理任务队列中的任务
+    while task_queue:
+        current_task = task_queue.popleft()
+        await run_task(current_task)
+        completed_tasks.add(current_task['task_id'])
+
+        # 检查是否有其他任务依赖于当前任务，若可以则放入队列
+        for task_id, dependencies in task_dependencies.items():
+            if task_id not in completed_tasks and all(dep in completed_tasks for dep in dependencies):
+                task_queue.append(task_map[task_id])
+
+    
+async def main(
+    idea: str = 
+    """
+# Overall
+We are engaging in a competition named RSNA 2024 Lumbar Spine Degenerative Classification, we are suppose to write some code till we have the final result: submission.csv. The submission will done by human, the system only have to save the last result as submission.csv, that is enough. You will need to record the results according to the evaluation.
+
+# Description
+The challenge will focus on the classification of five lumbar spine degenerative conditions: Left Neural Foraminal Narrowing, Right Neural Foraminal Narrowing, Left Subarticular Stenosis, Right Subarticular Stenosis, and Spinal Canal Stenosis. For each imaging study in the dataset, we’ve provided severity scores (Normal/Mild, Moderate, or Severe) for each of the five conditions across the intervertebral disc levels L1/L2, L2/L3, L3/L4, L4/L5, and L5/S1.
 """,
     investment: float = 3.0,
     n_round: int = 5,
     add_human: bool = False,
 ):
-    logger.info(idea)
-
     team = Team()
+    sh = Stakeholder()
+    sa = SolutionArchitect()
     team.hire(
         [
-            Stakeholder(),
-            SolutionArchtect(),
-            DevOpsEngineer(),
-            DataEngineer(),
-            DataScientist(),
-            SoftwareEngineer(),
-            MLEngineer(),
+            sh,
+            sa,
+            # DevOpsEngineer(),
+            # DataEngineer(),
+            # DataScientist(),
+            # SoftwareEngineer(),
+            # MLEngineer(),
         ]
     )
+    # team.run_project(idea, resume = False)
+    # await team.run(n_round=n_round)
 
-    team.invest(investment=investment)
-    team.run_project(idea)
-    await team.run(n_round=n_round)
+    project_path = r"C:\Users\Jumbo\Desktop\MetaGPT-MLO\workspace\20240910172755"
+    tasks = load_tasks(project_path)
 
+    # 调度并执行任务
+    await schedule_tasks(tasks)
 
 if __name__ == "__main__":
     fire.Fire(main)
