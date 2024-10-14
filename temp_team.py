@@ -12,6 +12,7 @@ from metagpt.roles.data_scientist import DataScientist
 from metagpt.roles.software_engineer import SoftwareEngineer
 from metagpt.roles.ML_engineer import MLEngineer
 from metagpt.roles.DevOps_engineer import DevOpsEngineer
+from metagpt.roles.di.data_interpreter import DataInterpreter
 from metagpt.logs import logger
 from metagpt.utils.recovery_util import save_history
 import sys
@@ -97,17 +98,40 @@ def load_tasks(project_path):
         tasks = json.load(file)
     return tasks
 
-async def run_task(task: dict):
+async def run_job(project_path:str, task: dict):
     """根据任务分配启动相应的 agent 并执行任务"""
     assigned_agent = task['assigned_agent']
-    requirement = task['details']  
-    task_id = task['task_id']
-    task_description = task['task_description']
-    
-    logger.info(f"Starting task {task_id} with agent {assigned_agent}")
+    # job_id = task['job_id']
+    # job_description = task['job_description']
+    # requirement = task['details']
+    # file_description = task.get('file', 'No specific file description provided.')
+    # expected_output = task.get('expected_output', 'No expected output provided.')
+    # dependencies = task.get('dependencies', [])
+    # additional_notes = task.get('additional_notes', 'No additional notes provided.')
 
-    # 将数据描述附加到任务描述中
-    full_task_details = f"{task_description}\n\n{requirement}\n\n{DATA_DESC}"
+    logger.info(f"Starting task with agent {assigned_agent}")
+
+    # 将所有相关信息组合成完整的任务详情
+    full_task_details = json.dumps(task)
+#     full_task_details = f"""
+# Job Description: 
+# {job_description}
+
+# Task Details:
+# {requirement}
+
+# File Description:
+# {file_description}
+
+# Expected Output:
+# {expected_output}
+
+# Additional Notes:
+# {additional_notes}
+
+# Dataset Information:
+# {DATA_DESC}
+#     """
 
     # 根据任务中的 assigned_agent 启动不同的 agent
     if assigned_agent == "DataEngineer":
@@ -126,36 +150,13 @@ async def run_task(task: dict):
 
     # 执行任务
     try:
+        agent.planner.plan.project_path = project_path
         rsp = await agent.run(full_task_details)
-        logger.info(f"Task {task_id} completed: {rsp}")
+        logger.info(f"Task completed: {rsp}")
     except Exception as e:
-        logger.error(f"Failed to complete task {task_id} with error: {str(e)}")
+        logger.error(f"Failed to complete task with error: {str(e)}")
 
-    # 保存执行历史
     # save_history(role=agent)
-
-async def schedule_tasks(tasks: List[Dict]):
-    """调度并按顺序执行任务，使用队列来管理可执行任务"""
-    completed_tasks = set()
-    task_queue = deque()  # 队列存放可执行的任务
-    task_dependencies = {task['task_id']: task['dependencies'] for task in tasks}
-    task_map = {task['task_id']: task for task in tasks}
-
-    # 初始化队列：将所有没有依赖的任务放入队列
-    for task_id, dependencies in task_dependencies.items():
-        if not dependencies:  # 没有依赖的任务可以立即执行
-            task_queue.append(task_map[task_id])
-
-    # 处理任务队列中的任务
-    while task_queue:
-        current_task = task_queue.popleft()
-        await run_task(current_task)
-        completed_tasks.add(current_task['task_id'])
-
-        # 检查是否有其他任务依赖于当前任务，若可以则放入队列
-        for task_id, dependencies in task_dependencies.items():
-            if task_id not in completed_tasks and all(dep in completed_tasks for dep in dependencies):
-                task_queue.append(task_map[task_id])
 
     
 async def main(
@@ -163,6 +164,7 @@ async def main(
     """
 # Overall
 We are engaging in a competition named RSNA 2024 Lumbar Spine Degenerative Classification, we are suppose to write some code till we have the final result: submission.csv. The submission will done by human, the system only have to save the last result as submission.csv, that is enough. You will need to record the results according to the evaluation.
+
 
 # Description
 The challenge will focus on the classification of five lumbar spine degenerative conditions: Left Neural Foraminal Narrowing, Right Neural Foraminal Narrowing, Left Subarticular Stenosis, Right Subarticular Stenosis, and Spinal Canal Stenosis. For each imaging study in the dataset, we’ve provided severity scores (Normal/Mild, Moderate, or Severe) for each of the five conditions across the intervertebral disc levels L1/L2, L2/L3, L3/L4, L4/L5, and L5/S1.
@@ -189,10 +191,11 @@ The challenge will focus on the classification of five lumbar spine degenerative
     # await team.run(n_round=n_round)
 
     project_path = r"C:\Users\Jumbo\Desktop\MetaGPT-MLO\workspace\20240910172755"
-    tasks = load_tasks(project_path)
+    jobs = load_tasks(project_path)
 
     # 调度并执行任务
-    await schedule_tasks(tasks)
+    for job in jobs:
+        await run_job(project_path, job)
 
 if __name__ == "__main__":
     fire.Fire(main)

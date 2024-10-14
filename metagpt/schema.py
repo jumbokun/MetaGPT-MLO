@@ -345,6 +345,7 @@ class Task(BaseModel):
     task_type: str = ""
     code: str = ""
     result: str = ""
+    file_name: str = ""
     is_success: bool = False
     is_finished: bool = False
 
@@ -374,6 +375,7 @@ class Plan(BaseModel):
     tasks: list[Task] = []
     task_map: dict[str, Task] = {}
     current_task_id: str = ""
+    project_path: str = ""
 
     def _topological_sort(self, tasks: list[Task]):
         task_map = {task.task_id: task for task in tasks}

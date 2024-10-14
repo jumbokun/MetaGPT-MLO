@@ -26,28 +26,28 @@ ANALYZE_PROMPT = """
 You are familiar with Machine Learning Operations (MLOps), which consists of several key phases. Each phase has its own purpose in the overall machine learning lifecycle. Your task is to analyze the user's requirements and align them with the necessary MLOps phases. Below is a brief description of the key MLOps phases:
 
 1. **Data Engineering**: This phase involves extracting, transforming, and loading (ETL) data from various sources. Typical tasks include:
-   - Connecting to raw data (e.g., from batch, stream, or cloud storage).
-   - Data extraction and cleaning (removing nulls, handling missing values).
-   - Data transformation (feature engineering, feature scaling).
+- Connecting to raw data (e.g., from batch, stream, or cloud storage).
+- Data extraction and cleaning (removing nulls, handling missing values).
+- Data transformation (feature engineering, feature scaling).
 
 2. **Feature Engineering**: In this phase, new features are generated to improve model performance. The tasks include:
-   - Defining transformation rules and cleaning rules.
-   - Generating new features from the raw data (e.g., calculating derived features).
+- Defining transformation rules and cleaning rules.
+- Generating new features from the raw data (e.g., calculating derived features).
 
 3. **Model Experimentation**: This phase involves training and validating machine learning models. The tasks include:
-   - Data analysis and preparation (splitting datasets, handling imbalanced data).
-   - Model training and hyperparameter tuning (finding the best model for the given data).
-   - Model validation (assessing the model performance on unseen data).
+- Data analysis and preparation (splitting datasets, handling imbalanced data).
+- Model training and hyperparameter tuning (finding the best model for the given data).
+- Model validation (assessing the model performance on unseen data).
 
 4. **Automated ML Workflow Pipeline**: Once a model is trained, it needs to be integrated into a pipeline for automated retraining and versioning. The tasks include:
-   - Versioning the model and feature data.
-   - Scheduling the retraining of the model as new data becomes available.
-   - Logging metadata to track the performance and changes to the model.
+- Versioning the model and feature data.
+- Scheduling the retraining of the model as new data becomes available.
+- Logging metadata to track the performance and changes to the model.
 
 5. **Model Deployment and Serving**: The final phase involves deploying the model into production and making predictions. The tasks include:
-   - Deploying the model to a model serving platform (for online or batch predictions).
-   - Monitoring the model's performance in production (e.g., checking for model drift, recalibrating predictions).
-   - Integrating continuous feedback loops for model refinement.
+- Deploying the model to a model serving platform (for online or batch predictions).
+- Monitoring the model's performance in production (e.g., checking for model drift, recalibrating predictions).
+- Integrating continuous feedback loops for model refinement.
 
 # Step 1: Extract Core Tasks
 Analyze the provided user requirements and extract the core tasks that the project needs to achieve. Focus on data processing, model training, and result submission.

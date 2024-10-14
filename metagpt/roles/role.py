@@ -482,7 +482,7 @@ class Role(SerializationMixin, ContextMixin, BaseModel):
         # create initial plan and update it until confirmation
         # testing
         goal = self.rc.memory.get()[-1].content  # retreive latest user requirement
-        print(goal)
+        print("goal: " + goal)
         await self.planner.update_plan(goal=goal)
         print('updated plan')
 

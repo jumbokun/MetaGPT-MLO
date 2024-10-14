@@ -6,25 +6,29 @@ from metagpt.logs import logger
 from metagpt.roles import Role
 from metagpt.schema import Message, Task, TaskResult
 from metagpt.utils.common import CodeParser
-
+from metagpt.actions.write_code_mlops import WriteCode
+import os
 # Template for generating code
 TASK_EXECUTE_PROMPT = """
-# Task Description
+# Task Instruction
 {task_description}
+
+# Task Type
+{details}
 
 # Context
 You are assigned the following task: {details}
-Expected output: {expected_output}
 
 Generate Python code to accomplish the task. Provide only the code without any additional explanations.
 """
 
+
 class DataEngineer(Role):
-    name: str = "David"
+    # name: str = "David"
     profile: str = "Data Engineer"
     auto_run: bool = True
     use_plan: bool = True
-    use_reflection: bool = False
+    use_reflection: bool = True
     react_mode: Literal["plan_and_act", "react"] = "plan_and_act"
     max_react_loop: int = 10
 
@@ -36,7 +40,7 @@ class DataEngineer(Role):
             auto_run=self.auto_run
         )
         self.use_plan = self.react_mode == "plan_and_act"
-        self.set_actions([])  # Define specific actions if needed
+        self.set_actions([WriteCode])  # Define specific actions if needed
         self._set_state(0)
         return self
 
@@ -45,30 +49,47 @@ class DataEngineer(Role):
         return self.rc.working_memory
 
     async def _plan_and_act(self) -> Message:
-        """Overrides the base method to ensure proper termination of actions."""
-        try:
-            rsp = await super()._plan_and_act()
-            return rsp
-        except Exception as e:
-            raise e
+        """first plan, then execute an action sequence, i.e. _think (of a plan) -> _act -> _act -> ... Use llm to come up with the plan dynamically."""
+
+        goal = self.rc.memory.get()[-1].content  # retreive latest user requirement
+        # print("goal: " + goal)
+        await self.planner.update_plan(goal=goal)
+        # print('updated plan')
+
+        # take on tasks until all finished
+        while self.planner.current_task:
+            task = self.planner.current_task
+            logger.info(f"ready to take on task {task}")
+
+            # take on current task
+            task_result = await self._act_on_task(task)
+
+            # process the result, such as reviewing, confirming, plan updating
+            await self.planner.process_task_result(task_result)
+
+        rsp = self.planner.get_useful_memories()[0]  # return the completed plan as a response
+
+        self.rc.memory.add(rsp)  # add to persistent memory
+
+        return rsp
 
     async def _act_on_task(self, current_task: Task) -> TaskResult:
-        """Generates code for the task, saves it to a file, and executes it."""
-        logger.info(f"DataEngineer is working on task: {current_task.description}")
+        """根据 agent 级别任务生成代码，保存并执行它。"""
+        logger.info(f"DataEngineer is working on task: {current_task.instruction}")  # 使用 instruction 代替 task_description
 
-        # Generate code for the task
+        # 根据任务生成代码
         code = await self._write_code(current_task)
-
-        # Save code to file
-        file_path = current_task.kwargs.get('file_path', 'output.py')
+ 
+        # 保存代码到文件 
+        file_path = os.path.join(self.planner.plan.project_path, current_task.file_name)
         with open(file_path, "w") as f:
             f.write(code)
         logger.info(f"DataEngineer saved file: {file_path}")
 
-        # Execute the file
+        # 执行文件
         success = await self._execute_file(file_path)
 
-        # Prepare task result
+        # 准备任务结果
         task_result = TaskResult(
             code=code,
             result=f"File saved and executed: {file_path}",
@@ -76,18 +97,29 @@ class DataEngineer(Role):
         )
         return task_result
 
-    async def _write_code(self, current_task: Task) -> str:
-        """Generates code based on the task using LLM."""
-        prompt = TASK_EXECUTE_PROMPT.format(
-            task_description=current_task.description,
-            details=current_task.content,
-            expected_output=current_task.kwargs.get('expected_output', '')
-        )
 
-        # Use LLM to generate code
-        rsp = await self.llm.aask(prompt)
-        code = CodeParser.extract_code(rsp)  # Extract code from LLM response
+    async def _write_code(self, current_task: Task) -> str:
+        """根据 agent 级别任务使用 LLM 生成代码。"""
+        # prompt = TASK_EXECUTE_PROMPT.format(
+        #     task_description=current_task.instruction,  # 使用 instruction 代替 task_description
+        #     details=current_task.task_type,             # 使用 task_type 作为任务类型说明
+        #     # expected_output=current_task.kwargs.get('expected_output', '')  # 获取期望输出
+        # )
+
+        # # 使用 LLM 生成代码
+        # rsp = await self.llm.aask(prompt)
+        # code = CodeParser.parse_code(block=None, text=rsp)  # 从 LLM 响应中提取代码
+        todo = self.rc.todo
+        plan_status = self.planner.get_plan_status() if self.use_plan else ""
+
+        code = await todo.run(
+            instruction = current_task.instruction,
+            plan_status = plan_status,
+            working_memory = self.working_memory.get()
+            # use_reflection=use_reflection,
+        )
         return code
+
 
     async def _execute_file(self, file_path: str) -> bool:
         """Executes the generated Python file."""

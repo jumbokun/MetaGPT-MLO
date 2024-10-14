@@ -24,17 +24,19 @@ class WritePlan(Action):
     # Available Task Types:
     {task_type_desc}
     # Task:
-    Based on the context, write a plan or modify an existing plan of what you should do to achieve the goal. A plan consists of one to {max_tasks} tasks.
+    You are writing codes for a machine learning operation project. You are currently writing a plan to break down the given job into some doable detailed tasks. Each task should be precisely matched to a document that you can describe in as detailed as possible. 
+    Based on the context, write a plan or modify an existing plan of what you should do to achieve the goal. A plan consists of one to {max_tasks} tasks. 
     If you are modifying an existing plan, carefully follow the instruction, don't make unnecessary changes. Give the whole plan unless instructed to modify only one task of the plan.
     If you encounter errors on the current task, revise and output the current single task only.
-    Output a list of jsons following the format:
+    Output a list of jsons following the format(must include ``` markers):
     ```json
     [
         {{
             "task_id": str = "unique identifier for a task in plan, can be an ordinal",
             "dependent_task_ids": list[str] = "ids of tasks prerequisite to this task",
-            "instruction": "what you should do in this task, one short phrase or sentence",
+            "instruction": "what you should do in this task, please as accurate as possible, include for example what files are invovled and what code should be written",
             "task_type": "type of this task, should be one of Available Task Types",
+            "file": "To be stored file and if necessary the folder in relative path."
         }},
         ...
     ]
@@ -46,6 +48,7 @@ class WritePlan(Action):
         prompt = self.PROMPT_TEMPLATE.format(
             context="\n".join([str(ct) for ct in context]), max_tasks=max_tasks, task_type_desc=task_type_desc
         )
+        print(prompt)
         rsp = await self._aask(prompt)
         rsp = CodeParser.parse_code(block=None, text=rsp)
         return rsp
