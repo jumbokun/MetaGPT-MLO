@@ -36,7 +36,7 @@ class WritePlan(Action):
             "dependent_task_ids": list[str] = "ids of tasks prerequisite to this task",
             "instruction": "what you should do in this task, please as accurate as possible, include for example what files are invovled and what code should be written",
             "task_type": "type of this task, should be one of Available Task Types",
-            "file": "To be stored file and if necessary the folder in relative path."
+            "file_name": "To be stored file and if necessary the folder in relative path. Usually some python or txt file. If it's a coding task, then MUST have a file name. Leave if blank if no files invovled."
         }},
         ...
     ]

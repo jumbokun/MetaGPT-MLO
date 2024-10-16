@@ -376,7 +376,7 @@ class Plan(BaseModel):
     task_map: dict[str, Task] = {}
     current_task_id: str = ""
     project_path: str = ""
-
+    data_desc: str = ""
     def _topological_sort(self, tasks: list[Task]):
         task_map = {task.task_id: task for task in tasks}
         dependencies = {task.task_id: set(task.dependent_task_ids) for task in tasks}

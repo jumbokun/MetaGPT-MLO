@@ -151,6 +151,7 @@ async def run_job(project_path:str, task: dict):
     # 执行任务
     try:
         agent.planner.plan.project_path = project_path
+        agent.planner.plan.data_desc = DATA_DESC
         rsp = await agent.run(full_task_details)
         logger.info(f"Task completed: {rsp}")
     except Exception as e:

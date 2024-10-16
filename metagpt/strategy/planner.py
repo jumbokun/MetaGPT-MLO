@@ -92,8 +92,9 @@ class Planner(BaseModel):
 
     async def process_task_result(self, task_result: TaskResult):
         # ask for acceptance, users can other refuse and change tasks in the plan
+        logger.info("waiting for review")
         review, task_result_confirmed = await self.ask_review(task_result)
-
+        logger.info(f"task_result_confirmed is {task_result_confirmed}")
         if task_result_confirmed:
             # tick off this task and record progress
             await self.confirm_task(self.current_task, task_result, review)

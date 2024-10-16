@@ -31,7 +31,12 @@ class DataEngineer(Role):
     use_reflection: bool = True
     react_mode: Literal["plan_and_act", "react"] = "plan_and_act"
     max_react_loop: int = 10
-
+    def ensure_directory_exists(self, file_path):
+        directory = os.path.dirname(file_path)
+        logger.info(directory)
+        if directory and not os.path.exists(directory):
+            print('making directory %s' % directory)
+            os.makedirs(directory)
     @model_validator(mode="after")
     def set_plan_and_tool(self) -> "DataEngineer":
         self._set_react_mode(
@@ -82,6 +87,8 @@ class DataEngineer(Role):
  
         # 保存代码到文件 
         file_path = os.path.join(self.planner.plan.project_path, current_task.file_name)
+        logger.info(f"{file_path}")
+        self.ensure_directory_exists(file_path)
         with open(file_path, "w") as f:
             f.write(code)
         logger.info(f"DataEngineer saved file: {file_path}")

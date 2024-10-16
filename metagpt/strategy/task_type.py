@@ -21,11 +21,11 @@ class TaskTypeDef(BaseModel):
 class TaskType(Enum):
     """By identifying specific types of tasks, we can inject human priors (guidance) to help task solving"""
 
-    EDA = TaskTypeDef(
-        name="eda",
-        desc="For performing exploratory data analysis",
-        guidance=EDA_PROMPT,
-    )
+    # EDA = TaskTypeDef(
+    #     name="eda",
+    #     desc="For performing exploratory data analysis",
+    #     guidance=EDA_PROMPT,
+    # )
     DATA_PREPROCESS = TaskTypeDef(
         name="data preprocessing",
         desc="For preprocessing dataset in a data analysis or machine learning task ONLY,"
